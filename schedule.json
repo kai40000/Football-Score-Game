@@ -1,1 +1,54 @@
-abchjkdalksj
+{
+  "competition": "English Premier League",
+  "season": "2025/26",
+  "matchdays": [
+    {
+      "matchday": 1,
+      "matches": [
+        {
+          "date": "2025-08-15",
+          "time": "20:00",
+          "home": "Liverpool FC",
+          "away": "AFC Bournemouth",
+          "result": {
+            "homeGoals": 4,
+            "awayGoals": 2,
+            "halfTime": "1-0"
+          }
+        },
+        {
+          "date": "2025-08-16",
+          "time": "12:30",
+          "home": "Aston Villa FC",
+          "away": "Newcastle United FC",
+          "result": {
+            "homeGoals": 0,
+            "awayGoals": 0,
+            "halfTime": null
+          }
+        },
+        {
+          "date": "2025-08-16",
+          "time": "15:00",
+          "home": "Brighton & Hove Albion FC",
+          "away": "Fulham FC",
+          "result": {
+            "homeGoals": 1,
+            "awayGoals": 1,
+            "halfTime": "0-0"
+          }
+        },
+        {
+          "date": "2025-08-16",
+          "time": null,
+          "home": "Sunderland AFC",
+          "away": "West Ham United FC",
+          "result": {
+            "homeGoals": 3,
+            "awayGoals": 0,
+            "halfTime": "0-0"
+          }
+        },
+    }
+  ]
+}
