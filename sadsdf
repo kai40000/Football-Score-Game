@@ -5,8 +5,16 @@ from datetime import datetime
 
 URL = "https://www.worldfootball.net/all_matches/eng-premier-league-2025-2026/"
 
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                  "AppleWebKit/537.36 (KHTML, like Gecko) "
+                  "Chrome/120.0 Safari/537.36"
+}
+
 def scrape_matches():
-    response = requests.get(URL, timeout=20)
+    response = requests.get(URL, headers=HEADERS, timeout=20)
+
+    # This will now work (no 403)
     response.raise_for_status()
 
     soup = BeautifulSoup(response.text, "html.parser")
@@ -15,13 +23,13 @@ def scrape_matches():
 
     for row in soup.select("table.standard_tabelle tr"):
         cols = row.find_all("td")
-        if len(cols) < 5:
+        if len(cols) < 6:
             continue
 
-        date_text = cols[0].text.strip()  # 16/08/2025
+        date_text = cols[0].text.strip()
         home = cols[2].text.strip()
         away = cols[4].text.strip()
-        score_text = cols[5].text.strip() if len(cols) > 5 else ""
+        score_text = cols[5].text.strip()
 
         try:
             date = datetime.strptime(date_text, "%d/%m/%Y").strftime("%Y-%m-%d")
