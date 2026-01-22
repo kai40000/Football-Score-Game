@@ -1,27 +1,29 @@
 {
-  "matchday": 99,
-  "matches": [
+  "matchdays": [
     {
-      "date": "2099-01-01",
-      "time": "12:00",
-      "home": "TEST FC ALPHA",
-      "away": "MOCK UNITED",
-      "result": {
-        "homeGoals": 9,
-        "awayGoals": 9,
-        "halfTime": "5-5"
-      }
+      "matchday": 99,
+      "matches": [
+        {
+          "home": "Fake United",
+          "away": "Mock City",
+          "date": "2026-01-10"
+        },
+        {
+          "home": "Test FC",
+          "away": "Debug Rovers",
+          "date": "2026-01-10"
+        }
+      ]
     },
     {
-      "date": "2099-01-01",
-      "time": "15:00",
-      "home": "DEBUG CITY",
-      "away": "PLACEHOLDER ROVERS",
-      "result": {
-        "homeGoals": 0,
-        "awayGoals": 0,
-        "halfTime": "0-0"
-      }
+      "matchday": 100,
+      "matches": [
+        {
+          "home": "Sample Town",
+          "away": "Example Athletic",
+          "date": "2026-01-17"
+        }
+      ]
     }
   ]
 }
