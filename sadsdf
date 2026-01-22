@@ -1,61 +1,74 @@
-import requests
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
 from bs4 import BeautifulSoup
-import json
 from datetime import datetime
+import json
+import time
 
 URL = "https://www.worldfootball.net/all_matches/eng-premier-league-2025-2026/"
 
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                  "AppleWebKit/537.36 (KHTML, like Gecko) "
-                  "Chrome/120.0 Safari/537.36"
+options = Options()
+options.add_argument("--headless")
+options.add_argument("--no-sandbox")
+options.add_argument("--disable-dev-shm-usage")
+
+service = Service("/usr/bin/chromedriver")
+driver = webdriver.Chrome(service=service, options=options)
+
+driver.get(URL)
+time.sleep(5)
+
+html = driver.page_source
+driver.quit()
+
+soup = BeautifulSoup(html, "lxml")
+
+schedule = {
+    "competition": "Premier League",
+    "season": "2025/2026",
+    "matchdays": []
 }
 
-def scrape_matches():
-    response = requests.get(URL, headers=HEADERS, timeout=20)
+current_md = None
+matchdays = {}
 
-    # This will now work (no 403)
-    response.raise_for_status()
+for row in soup.select("table.standard_tabelle tr"):
+    cells = row.find_all("td")
 
-    soup = BeautifulSoup(response.text, "html.parser")
+    if len(cells) == 1:
+        text = cells[0].get_text(strip=True)
+        if text.startswith("Matchday"):
+            current_md = int(text.split()[-1])
+            matchdays[current_md] = []
+        continue
 
-    matches = []
-
-    for row in soup.select("table.standard_tabelle tr"):
-        cols = row.find_all("td")
-        if len(cols) < 6:
-            continue
-
-        date_text = cols[0].text.strip()
-        home = cols[2].text.strip()
-        away = cols[4].text.strip()
-        score_text = cols[5].text.strip()
+    if len(cells) >= 6 and current_md:
+        date = cells[0].get_text(strip=True)
+        home = cells[2].get_text(strip=True)
+        away = cells[4].get_text(strip=True)
+        score = cells[5].get_text(strip=True)
 
         try:
-            date = datetime.strptime(date_text, "%d/%m/%Y").strftime("%Y-%m-%d")
+            date_iso = datetime.strptime(date, "%d/%m/%Y").strftime("%Y-%m-%d")
         except:
             continue
 
-        result = None
-        if score_text and ":" in score_text:
-            home_goals, away_goals = score_text.split(":")
-            result = {
-                "homeGoals": int(home_goals),
-                "awayGoals": int(away_goals),
-                "halfTime": None
-            }
-
-        matches.append({
-            "date": date,
+        matchdays[current_md].append({
+            "date": date_iso,
             "time": None,
             "home": home,
             "away": away,
-            "result": result
+            "score": None if score == "-" else score
         })
 
-    return matches
+for md in sorted(matchdays):
+    schedule["matchdays"].append({
+        "matchday": md,
+        "matches": matchdays[md]
+    })
 
+with open("schedule.json", "w") as f:
+    json.dump(schedule, f, indent=2)
 
-if __name__ == "__main__":
-    data = scrape_matches()
-    print(json.dumps(data, indent=2))
+print("schedule.json created successfully")
