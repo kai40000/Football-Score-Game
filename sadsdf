@@ -1,5 +1,5 @@
 import requests
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Comment
 import json
 from datetime import datetime
 
@@ -15,13 +15,25 @@ def parse_date(date_str):
     except:
         return None
 
+def get_commented_table(soup):
+    comments = soup.find_all(string=lambda text: isinstance(text, Comment))
+    for c in comments:
+        if "sched_" in c:
+            return BeautifulSoup(c, "lxml")
+    return None
+
 def main():
     response = requests.get(URL, headers=headers)
     soup = BeautifulSoup(response.text, "lxml")
 
-    table = soup.find("table", {"id": "sched_2025-2026_9_1"})
+    comment_soup = get_commented_table(soup)
+    if not comment_soup:
+        print("Could not find commented fixture table!")
+        return
+
+    table = comment_soup.find("table")
     if not table:
-        print("Could not find fixture table!")
+        print("Could not find fixture table inside comments!")
         return
 
     matches = []
@@ -32,28 +44,19 @@ def main():
         if row.get("class") and "thead" in row.get("class"):
             continue
 
-        cols = row.find_all("td")
-        if not cols:
-            continue
-
-        date = row.find("th", {"data-stat": "date"})
+        date_cell = row.find("th", {"data-stat": "date"})
         home = row.find("td", {"data-stat": "home_team"})
         away = row.find("td", {"data-stat": "away_team"})
         score = row.find("td", {"data-stat": "score"})
 
-        if not date or not home or not away:
+        if not date_cell or not home or not away:
             continue
 
-        date_text = date.text.strip()
-        home_text = home.text.strip()
-        away_text = away.text.strip()
-        score_text = score.text.strip() if score else ""
-
-        parsed_date = parse_date(date_text)
+        parsed_date = parse_date(date_cell.text.strip())
         if not parsed_date:
             continue
 
-        # Simple matchday split by date change
+        # New matchday when date changes
         if last_date and parsed_date != last_date:
             matchday += 1
         last_date = parsed_date
@@ -61,12 +64,11 @@ def main():
         matches.append({
             "matchday": matchday,
             "date": parsed_date,
-            "home": home_text,
-            "away": away_text,
-            "score": score_text if score_text else ""
+            "home": home.text.strip(),
+            "away": away.text.strip(),
+            "score": score.text.strip() if score else ""
         })
 
-    # Convert to your app format
     schedule = {
         "competition": "Premier League",
         "season": "2025/2026",
@@ -76,10 +78,7 @@ def main():
     md_dict = {}
     for m in matches:
         md = m["matchday"]
-        if md not in md_dict:
-            md_dict[md] = []
-
-        md_dict[md].append({
+        md_dict.setdefault(md, []).append({
             "date": m["date"],
             "time": "",
             "home": m["home"],
@@ -96,7 +95,7 @@ def main():
     with open("schedule.json", "w") as f:
         json.dump(schedule, f, indent=2)
 
-    print("schedule.json created successfully!")
+    print("✅ schedule.json created successfully!")
 
 if __name__ == "__main__":
     main()
