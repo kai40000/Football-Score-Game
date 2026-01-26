@@ -5,43 +5,40 @@ from datetime import datetime
 
 URL = "https://fbref.com/en/comps/9/schedule/Premier-League-Scores-and-Fixtures"
 
-headers = {
-    "User-Agent": "Mozilla/5.0"
-}
+headers = {"User-Agent": "Mozilla/5.0"}
 
 def parse_date(date_str):
     try:
-        return datetime.strptime(date_str, "%Y-%m-%d").strftime("%Y-%m-%d")
+        return datetime.strptime(date_str.strip(), "%Y-%m-%d").strftime("%Y-%m-%d")
     except:
         return None
 
-def get_commented_table(soup):
+def find_fixture_table_in_comments(soup):
     comments = soup.find_all(string=lambda text: isinstance(text, Comment))
-    for c in comments:
-        if "sched_" in c:
-            return BeautifulSoup(c, "lxml")
+    for comment in comments:
+        if "Scores & Fixtures" in comment or "sched" in comment:
+            comment_soup = BeautifulSoup(comment, "lxml")
+            table = comment_soup.find("table")
+            if table:
+                return table
     return None
 
 def main():
+    print("Downloading fixtures from FBref...")
     response = requests.get(URL, headers=headers)
     soup = BeautifulSoup(response.text, "lxml")
 
-    comment_soup = get_commented_table(soup)
-    if not comment_soup:
-        print("Could not find commented fixture table!")
-        return
-
-    table = comment_soup.find("table")
+    table = find_fixture_table_in_comments(soup)
     if not table:
-        print("Could not find fixture table inside comments!")
+        print("❌ Could not find fixture table on FBref page")
         return
 
     matches = []
     matchday = 1
     last_date = None
 
-    for row in table.tbody.find_all("tr"):
-        if row.get("class") and "thead" in row.get("class"):
+    for row in table.find("tbody").find_all("tr"):
+        if "thead" in row.get("class", []):
             continue
 
         date_cell = row.find("th", {"data-stat": "date"})
@@ -52,11 +49,10 @@ def main():
         if not date_cell or not home or not away:
             continue
 
-        parsed_date = parse_date(date_cell.text.strip())
+        parsed_date = parse_date(date_cell.text)
         if not parsed_date:
             continue
 
-        # New matchday when date changes
         if last_date and parsed_date != last_date:
             matchday += 1
         last_date = parsed_date
@@ -77,8 +73,7 @@ def main():
 
     md_dict = {}
     for m in matches:
-        md = m["matchday"]
-        md_dict.setdefault(md, []).append({
+        md_dict.setdefault(m["matchday"], []).append({
             "date": m["date"],
             "time": "",
             "home": m["home"],
@@ -86,7 +81,7 @@ def main():
             "score": m["score"]
         })
 
-    for md in sorted(md_dict.keys()):
+    for md in sorted(md_dict):
         schedule["matchdays"].append({
             "matchday": md,
             "matches": md_dict[md]
@@ -99,4 +94,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
