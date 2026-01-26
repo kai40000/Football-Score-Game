@@ -3,49 +3,47 @@ from bs4 import BeautifulSoup
 import json
 from datetime import datetime
 
-URL = "https://int.soccerway.com/national/england/premier-league/20252026/regular-season/r81364/matches/"
+URL = "https://www.bbc.com/sport/football/premier-league/scores-fixtures"
 
 headers = {"User-Agent": "Mozilla/5.0"}
 
-def format_date(date_str):
+def parse_date(date_str):
     try:
-        dt = datetime.strptime(date_str.strip(), "%d/%m/%y")
+        dt = datetime.strptime(date_str.strip(), "%A %d %B %Y")
         return dt.strftime("%Y-%m-%d")
     except:
         return None
 
-print("Downloading data from Soccerway...")
+print("Downloading fixtures from BBC Sport...")
 res = requests.get(URL, headers=headers)
 soup = BeautifulSoup(res.text, "lxml")
 
 matches = []
+current_date = None
 
-for row in soup.select("table.matches tbody tr"):
-    date_cell = row.select_one("td.full-date")
-    home_cell = row.select_one("td.team-a")
-    away_cell = row.select_one("td.team-b")
-    score_cell = row.select_one("td.score-time")
+for section in soup.select("div.qa-match-block"):
+    date_header = section.find_previous("h3")
+    if date_header:
+        parsed = parse_date(date_header.text)
+        if parsed:
+            current_date = parsed
 
-    if not date_cell or not home_cell or not away_cell:
-        continue
+    home = section.select_one("span.qa-home-team-name")
+    away = section.select_one("span.qa-away-team-name")
+    score = section.select_one("span.qa-full-time-score")
 
-    date = format_date(date_cell.text)
-    home = home_cell.text.strip()
-    away = away_cell.text.strip()
-    score = score_cell.text.strip() if score_cell else ""
-
-    if not date:
+    if not home or not away or not current_date:
         continue
 
     matches.append({
-        "date": date,
+        "date": current_date,
         "time": "",
-        "home": home,
-        "away": away,
-        "score": score
+        "home": home.text.strip(),
+        "away": away.text.strip(),
+        "score": score.text.strip() if score else ""
     })
 
-# Split into matchdays of 10 games each
+# Split into matchdays (10 games each)
 matchdays = []
 for i in range(0, len(matches), 10):
     matchdays.append({
@@ -62,4 +60,5 @@ schedule = {
 with open("schedule.json", "w") as f:
     json.dump(schedule, f, indent=2)
 
-print("✅ schedule.json created!")
+print(f"✅ Created schedule.json with {len(matches)} matches")
+
