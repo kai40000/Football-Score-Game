@@ -1,74 +1,103 @@
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
+import requests
 from bs4 import BeautifulSoup
-from datetime import datetime
 import json
-import time
+from datetime import datetime
 
-URL = "https://www.worldfootball.net/all_matches/eng-premier-league-2025-2026/"
+URL = "https://fbref.com/en/comps/9/schedule/Premier-League-Scores-and-Fixtures"
 
-options = Options()
-options.add_argument("--headless")
-options.add_argument("--no-sandbox")
-options.add_argument("--disable-dev-shm-usage")
-
-service = Service("/usr/bin/chromedriver")
-driver = webdriver.Chrome(service=service, options=options)
-
-driver.get(URL)
-time.sleep(5)
-
-html = driver.page_source
-driver.quit()
-
-soup = BeautifulSoup(html, "lxml")
-
-schedule = {
-    "competition": "Premier League",
-    "season": "2025/2026",
-    "matchdays": []
+headers = {
+    "User-Agent": "Mozilla/5.0"
 }
 
-current_md = None
-matchdays = {}
+def parse_date(date_str):
+    try:
+        return datetime.strptime(date_str, "%Y-%m-%d").strftime("%Y-%m-%d")
+    except:
+        return None
 
-for row in soup.select("table.standard_tabelle tr"):
-    cells = row.find_all("td")
+def main():
+    response = requests.get(URL, headers=headers)
+    soup = BeautifulSoup(response.text, "lxml")
 
-    if len(cells) == 1:
-        text = cells[0].get_text(strip=True)
-        if text.startswith("Matchday"):
-            current_md = int(text.split()[-1])
-            matchdays[current_md] = []
-        continue
+    table = soup.find("table", {"id": "sched_2025-2026_9_1"})
+    if not table:
+        print("Could not find fixture table!")
+        return
 
-    if len(cells) >= 6 and current_md:
-        date = cells[0].get_text(strip=True)
-        home = cells[2].get_text(strip=True)
-        away = cells[4].get_text(strip=True)
-        score = cells[5].get_text(strip=True)
+    matches = []
+    matchday = 1
+    last_date = None
 
-        try:
-            date_iso = datetime.strptime(date, "%d/%m/%Y").strftime("%Y-%m-%d")
-        except:
+    for row in table.tbody.find_all("tr"):
+        if row.get("class") and "thead" in row.get("class"):
             continue
 
-        matchdays[current_md].append({
-            "date": date_iso,
-            "time": None,
-            "home": home,
-            "away": away,
-            "score": None if score == "-" else score
+        cols = row.find_all("td")
+        if not cols:
+            continue
+
+        date = row.find("th", {"data-stat": "date"})
+        home = row.find("td", {"data-stat": "home_team"})
+        away = row.find("td", {"data-stat": "away_team"})
+        score = row.find("td", {"data-stat": "score"})
+
+        if not date or not home or not away:
+            continue
+
+        date_text = date.text.strip()
+        home_text = home.text.strip()
+        away_text = away.text.strip()
+        score_text = score.text.strip() if score else ""
+
+        parsed_date = parse_date(date_text)
+        if not parsed_date:
+            continue
+
+        # Simple matchday split by date change
+        if last_date and parsed_date != last_date:
+            matchday += 1
+        last_date = parsed_date
+
+        matches.append({
+            "matchday": matchday,
+            "date": parsed_date,
+            "home": home_text,
+            "away": away_text,
+            "score": score_text if score_text else ""
         })
 
-for md in sorted(matchdays):
-    schedule["matchdays"].append({
-        "matchday": md,
-        "matches": matchdays[md]
-    })
+    # Convert to your app format
+    schedule = {
+        "competition": "Premier League",
+        "season": "2025/2026",
+        "matchdays": []
+    }
 
-with open("schedule.json", "w") as f:
-    json.dump(schedule, f, indent=2)
+    md_dict = {}
+    for m in matches:
+        md = m["matchday"]
+        if md not in md_dict:
+            md_dict[md] = []
 
-print("schedule.json created successfully")
+        md_dict[md].append({
+            "date": m["date"],
+            "time": "",
+            "home": m["home"],
+            "away": m["away"],
+            "score": m["score"]
+        })
+
+    for md in sorted(md_dict.keys()):
+        schedule["matchdays"].append({
+            "matchday": md,
+            "matches": md_dict[md]
+        })
+
+    with open("schedule.json", "w") as f:
+        json.dump(schedule, f, indent=2)
+
+    print("schedule.json created successfully!")
+
+if __name__ == "__main__":
+    main()
+
