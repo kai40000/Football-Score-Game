@@ -1,63 +1,50 @@
-import requests
-from bs4 import BeautifulSoup
+import pandas as pd
 import json
 from datetime import datetime
 
-URL = "https://en.wikipedia.org/wiki/2025%E2%80%9326_Premier_League"
+CSV_URL = "https://www.football-data.co.uk/mmz4281/2526/E0.csv"
 
-print("Downloading fixtures from Wikipedia...")
+print("Downloading latest results...")
+df = pd.read_csv(CSV_URL)
 
-headers = {"User-Agent": "Mozilla/5.0"}
-r = requests.get(URL, headers=headers)
-soup = BeautifulSoup(r.text, "lxml")
+# Build lookup of results
+results = {}
 
-matches = []
+for _, row in df.iterrows():
+    if pd.isna(row["Date"]) or pd.isna(row["HomeTeam"]) or pd.isna(row["AwayTeam"]):
+        continue
 
-tables = soup.find_all("table", class_="wikitable")
+    try:
+        dt = datetime.strptime(row["Date"], "%d/%m/%Y").strftime("%Y-%m-%d")
+    except:
+        continue
 
-for table in tables:
-    rows = table.find_all("tr")
-    for row in rows:
-        cols = [c.get_text(strip=True) for c in row.find_all("td")]
-        if len(cols) < 5:
-            continue
+    if pd.notna(row["FTHG"]) and pd.notna(row["FTAG"]):
+        score = f"{int(row['FTHG'])}-{int(row['FTAG'])}"
+        key = (dt, row["HomeTeam"].strip(), row["AwayTeam"].strip())
+        results[key] = score
 
-        date_text = cols[0]
-        home = cols[1]
-        score = cols[2]
-        away = cols[3]
+print(f"Results loaded: {len(results)}")
 
-        try:
-            dt = datetime.strptime(date_text, "%d %B %Y")
-            formatted_date = dt.strftime("%Y-%m-%d")
-        except:
-            continue
+# Load full fixtures
+with open("full_schedule.json", "r") as f:
+    schedule = json.load(f)
 
-        matches.append({
-            "date": formatted_date,
-            "time": "",
-            "home": home,
-            "away": away,
-            "score": score if "-" in score else ""
-        })
+updated = 0
 
-print(f"Scraped {len(matches)} matches")
+for matchday in schedule["matchdays"]:
+    for match in matchday["matches"]:
+        key = (match["date"], match["home"].strip(), match["away"].strip())
 
-# Group into matchdays (10 matches each)
-matchdays = []
-for i in range(0, len(matches), 10):
-    matchdays.append({
-        "matchday": (i // 10) + 1,
-        "matches": matches[i:i+10]
-    })
+        if key in results:
+            match["score"] = results[key]
+            updated += 1
 
-schedule = {
-    "competition": "Premier League",
-    "season": "2025/2026",
-    "matchdays": matchdays
-}
+print(f"Updated {updated} match scores")
 
+# Save updated schedule
 with open("schedule.json", "w") as f:
     json.dump(schedule, f, indent=2)
 
-print("✅ schedule.json created")
+print("✅ schedule.json updated with latest scores")
+
