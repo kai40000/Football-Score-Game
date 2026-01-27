@@ -2,9 +2,6 @@ import json
 import pandas as pd
 from datetime import datetime
 
-# ==============================
-# TEAM NAME FIXES
-# ==============================
 TEAM_MAP = {
     "Man City": "Manchester City",
     "Man United": "Manchester United",
@@ -16,15 +13,9 @@ TEAM_MAP = {
     "Brighton": "Brighton & Hove Albion",
     "Leicester": "Leicester City",
     "Leeds": "Leeds United",
-    "Norwich": "Norwich City",
-    "Sheffield United": "Sheffield United",
-    "QPR": "Queens Park Rangers",
-    "Preston": "Preston North End"
+    "Norwich": "Norwich City"
 }
 
-# ==============================
-# LOAD RESULTS FROM FOOTBALL-DATA
-# ==============================
 CSV_URL = "https://www.football-data.co.uk/mmz4281/2526/E0.csv"
 
 print("Downloading latest results...")
@@ -33,7 +24,7 @@ df = pd.read_csv(CSV_URL)
 results = {}
 
 for _, row in df.iterrows():
-    if pd.isna(row["Date"]) or pd.isna(row["HomeTeam"]) or pd.isna(row["AwayTeam"]):
+    if pd.isna(row["Date"]):
         continue
 
     try:
@@ -41,44 +32,45 @@ for _, row in df.iterrows():
     except:
         continue
 
-    home = row["HomeTeam"].strip()
-    away = row["AwayTeam"].strip()
-
-    # Translate team names to match your JSON file
-    home = TEAM_MAP.get(home, home)
-    away = TEAM_MAP.get(away, away)
+    home = TEAM_MAP.get(str(row["HomeTeam"]).strip(), str(row["HomeTeam"]).strip())
+    away = TEAM_MAP.get(str(row["AwayTeam"]).strip(), str(row["AwayTeam"]).strip())
 
     if pd.notna(row["FTHG"]) and pd.notna(row["FTAG"]):
-        score = f"{int(row['FTHG'])}-{int(row['FTAG'])}"
-        key = (dt, home, away)
-        results[key] = score
+        results[(dt, home, away)] = f"{int(row['FTHG'])}-{int(row['FTAG'])}"
 
 print(f"Results loaded: {len(results)}")
 
-# ==============================
-# LOAD YOUR EXISTING SCHEDULE
-# ==============================
 with open("schedule.json", "r") as f:
     schedule = json.load(f)
 
 updated = 0
+debug_shown = 0
 
 for matchday in schedule["matchdays"]:
     for match in matchday["matches"]:
-        home = match["home"].strip()
-        away = match["away"].strip()
-        date = match["date"]
-
-        key = (date, home, away)
+        key = (match["date"], match["home"].strip(), match["away"].strip())
 
         if key in results:
             match["score"] = results[key]
             updated += 1
+        else:
+            # Show first 10 failures so we can see the mismatch
+            if debug_shown < 10:
+                print("NO MATCH FOUND FOR:")
+                print("  JSON :", key)
 
-# ==============================
-# SAVE UPDATED FILE
-# ==============================
+                # find same date games from CSV to compare names
+                same_date = [r for r in results.keys() if r[0] == match["date"]]
+                if same_date:
+                    print("  CSV options on same date:")
+                    for opt in same_date[:3]:
+                        print("   ", opt)
+                else:
+                    print("  ❌ No CSV games on this date")
+                print()
+                debug_shown += 1
+
 with open("schedule.json", "w") as f:
     json.dump(schedule, f, indent=2)
 
-print(f"✅ Updated {updated} match scores in schedule.json")
+print(f"\n✅ Updated {updated} match scores")
