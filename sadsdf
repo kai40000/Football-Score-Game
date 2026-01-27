@@ -1,7 +1,7 @@
 import pandas as pd
 import json
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 
 CSV_URL = "https://www.football-data.co.uk/mmz4281/2526/E0.csv"
 JSON_FILE = "schedule.json"
@@ -22,14 +22,22 @@ TEAM_MAP = {
     "newcastle united": "newcastle",
     "west ham united": "west ham",
     "sheffield united": "sheffield utd",
-    "luton town": "luton",
-    "ipswich town": "ipswich",
+    "leicester city": "leicester",
+    "leeds united": "leeds",
+    "everton": "everton",
+    "burnley": "burnley",
+    "brentford": "brentford",
+    "arsenal": "arsenal",
+    "chelsea": "chelsea",
+    "liverpool": "liverpool",
+    "crystal palace": "crystal palace",
+    "aston villa": "aston villa"
 }
 
 def clean_team(name):
     name = name.lower().strip()
-    name = re.sub(r"\bfc\b", "", name)
-    name = re.sub(r"\bafc\b", "", name)
+    name = re.sub(r"\b(fc|afc|cf)\b", "", name)
+    name = re.sub(r"[^a-z '&]", "", name)
     name = re.sub(r"\s+", " ", name).strip()
     return TEAM_MAP.get(name, name)
 
@@ -51,14 +59,12 @@ for _, row in df.iterrows():
     away = clean_team(str(row["AwayTeam"]))
 
     if pd.notna(row["FTHG"]) and pd.notna(row["FTAG"]):
-        home_goals = int(row["FTHG"])
-        away_goals = int(row["FTAG"])
-    else:
-        continue  # skip unplayed matches
+        results_lookup[(date_str, home, away)] = (
+            int(row["FTHG"]),
+            int(row["FTAG"])
+        )
 
-    results_lookup[(date_str, home, away)] = (home_goals, away_goals)
-
-print(f"Built lookup table with {len(results_lookup)} played matches")
+print(f"Lookup table built with {len(results_lookup)} played matches")
 
 # ================= UPDATE JSON =================
 
@@ -66,34 +72,53 @@ with open(JSON_FILE, "r") as f:
     schedule = json.load(f)
 
 updated = 0
+missed = []
 
 for md in schedule["matchdays"]:
     for match in md["matches"]:
-        date = match["date"]
+        base_date = datetime.strptime(match["date"], "%Y-%m-%d")
         home = clean_team(match["home"])
         away = clean_team(match["away"])
 
-        key = (date, home, away)
+        found = False
 
-        if key in results_lookup:
-            home_goals, away_goals = results_lookup[key]
+        # Try exact date, +1 day, -1 day
+        for offset in [0, 1, -1]:
+            check_date = (base_date + timedelta(days=offset)).strftime("%Y-%m-%d")
 
-            # Update score string
-            match["score"] = f"{home_goals}-{away_goals}"
+            # Normal
+            key = (check_date, home, away)
+            if key in results_lookup:
+                hg, ag = results_lookup[key]
+                found = True
 
-            # 🔥 ADD FULL RESULT OBJECT
-            match["result"] = {
-                "homeGoals": home_goals,
-                "awayGoals": away_goals,
-                "halfTime": ""
-            }
+            # Reversed home/away (rare but happens)
+            rev_key = (check_date, away, home)
+            if not found and rev_key in results_lookup:
+                ag, hg = results_lookup[rev_key]
+                found = True
 
-            updated += 1
+            if found:
+                match["score"] = f"{hg}-{ag}"
+                match["result"] = {
+                    "homeGoals": hg,
+                    "awayGoals": ag,
+                    "halfTime": ""
+                }
+                updated += 1
+                break
 
-print(f"Updated {updated} match results")
+        if not found and match.get("score", "") == "":
+            missed.append((match["date"], match["home"], match["away"]))
+
+print(f"✅ Updated {updated} matches")
+
+if missed:
+    print("\n⚠ Still unmatched matches:")
+    for m in missed[:10]:
+        print("  ", m)
 
 with open(JSON_FILE, "w") as f:
     json.dump(schedule, f, indent=2)
 
-print("✅ schedule.json successfully updated with result data")
-
+print("🎉 schedule.json fully synchronised")
