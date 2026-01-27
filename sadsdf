@@ -14,49 +14,16 @@ print(f"Results loaded: {len(df)}")
 
 TEAM_MAP = {
     "manchester united": "man united",
-    "man united": "man united",
-
     "manchester city": "man city",
-    "man city": "man city",
-
     "tottenham hotspur": "tottenham",
-    "tottenham": "tottenham",
-
     "wolverhampton wanderers": "wolves",
-    "wolves": "wolves",
-
     "nottingham forest": "nott'm forest",
-    "nott'm forest": "nott'm forest",
-
     "brighton & hove albion": "brighton",
-    "brighton": "brighton",
-
     "newcastle united": "newcastle",
-    "newcastle": "newcastle",
-
     "west ham united": "west ham",
-    "west ham": "west ham",
-
-    "leicester city": "leicester",
-    "leeds united": "leeds",
-
     "sheffield united": "sheffield utd",
-    "sheffield utd": "sheffield utd",
-
     "luton town": "luton",
     "ipswich town": "ipswich",
-
-    "aston villa": "aston villa",
-    "chelsea": "chelsea",
-    "arsenal": "arsenal",
-    "liverpool": "liverpool",
-    "everton": "everton",
-    "crystal palace": "crystal palace",
-    "bournemouth": "bournemouth",
-    "burnley": "burnley",
-    "fulham": "fulham",
-    "brentford": "brentford",
-    "southampton": "southampton"
 }
 
 def clean_team(name):
@@ -84,13 +51,14 @@ for _, row in df.iterrows():
     away = clean_team(str(row["AwayTeam"]))
 
     if pd.notna(row["FTHG"]) and pd.notna(row["FTAG"]):
-        score = f"{int(row['FTHG'])}-{int(row['FTAG'])}"
+        home_goals = int(row["FTHG"])
+        away_goals = int(row["FTAG"])
     else:
-        score = ""
+        continue  # skip unplayed matches
 
-    results_lookup[(date_str, home, away)] = score
+    results_lookup[(date_str, home, away)] = (home_goals, away_goals)
 
-print(f"Built lookup table with {len(results_lookup)} matches")
+print(f"Built lookup table with {len(results_lookup)} played matches")
 
 # ================= UPDATE JSON =================
 
@@ -107,15 +75,25 @@ for md in schedule["matchdays"]:
 
         key = (date, home, away)
 
-        if key in results_lookup and results_lookup[key] != "":
-            match["score"] = results_lookup[key]
+        if key in results_lookup:
+            home_goals, away_goals = results_lookup[key]
+
+            # Update score string
+            match["score"] = f"{home_goals}-{away_goals}"
+
+            # 🔥 ADD FULL RESULT OBJECT
+            match["result"] = {
+                "homeGoals": home_goals,
+                "awayGoals": away_goals,
+                "halfTime": ""
+            }
+
             updated += 1
 
-print(f"Updated {updated} match scores")
+print(f"Updated {updated} match results")
 
 with open(JSON_FILE, "w") as f:
     json.dump(schedule, f, indent=2)
 
-print("✅ schedule.json successfully updated")
-
+print("✅ schedule.json successfully updated with result data")
 
