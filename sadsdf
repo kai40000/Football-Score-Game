@@ -1,76 +1,70 @@
-import json
-import pandas as pd
-from datetime import datetime
+Downloading latest results...
+Results loaded: 230
+NO MATCH FOUND FOR:
+  JSON : ('2025-08-15', 'Liverpool FC', 'AFC Bournemouth')
+  CSV options on same date:
+    ('2025-08-15', 'Liverpool', 'Bournemouth')
 
-TEAM_MAP = {
-    "Man City": "Manchester City",
-    "Man United": "Manchester United",
-    "Spurs": "Tottenham",
-    "Newcastle": "Newcastle United",
-    "Wolves": "Wolverhampton Wanderers",
-    "West Ham": "West Ham United",
-    "Nott'm Forest": "Nottingham Forest",
-    "Brighton": "Brighton & Hove Albion",
-    "Leicester": "Leicester City",
-    "Leeds": "Leeds United",
-    "Norwich": "Norwich City"
-}
+NO MATCH FOUND FOR:
+  JSON : ('2025-08-16', 'Aston Villa FC', 'Newcastle United FC')
+  CSV options on same date:
+    ('2025-08-16', 'Aston Villa', 'Newcastle United')
+    ('2025-08-16', 'Brighton & Hove Albion', 'Fulham')
+    ('2025-08-16', 'Sunderland', 'West Ham United')
 
-CSV_URL = "https://www.football-data.co.uk/mmz4281/2526/E0.csv"
+NO MATCH FOUND FOR:
+  JSON : ('2025-08-16', 'Brighton & Hove Albion FC', 'Fulham FC')
+  CSV options on same date:
+    ('2025-08-16', 'Aston Villa', 'Newcastle United')
+    ('2025-08-16', 'Brighton & Hove Albion', 'Fulham')
+    ('2025-08-16', 'Sunderland', 'West Ham United')
 
-print("Downloading latest results...")
-df = pd.read_csv(CSV_URL)
+NO MATCH FOUND FOR:
+  JSON : ('2025-08-16', 'Sunderland AFC', 'West Ham United FC')
+  CSV options on same date:
+    ('2025-08-16', 'Aston Villa', 'Newcastle United')
+    ('2025-08-16', 'Brighton & Hove Albion', 'Fulham')
+    ('2025-08-16', 'Sunderland', 'West Ham United')
 
-results = {}
+NO MATCH FOUND FOR:
+  JSON : ('2025-08-16', 'Tottenham Hotspur FC', 'Burnley FC')
+  CSV options on same date:
+    ('2025-08-16', 'Aston Villa', 'Newcastle United')
+    ('2025-08-16', 'Brighton & Hove Albion', 'Fulham')
+    ('2025-08-16', 'Sunderland', 'West Ham United')
 
-for _, row in df.iterrows():
-    if pd.isna(row["Date"]):
-        continue
+NO MATCH FOUND FOR:
+  JSON : ('2025-08-16', 'Wolverhampton Wanderers FC', 'Manchester City FC')
+  CSV options on same date:
+    ('2025-08-16', 'Aston Villa', 'Newcastle United')
+    ('2025-08-16', 'Brighton & Hove Albion', 'Fulham')
+    ('2025-08-16', 'Sunderland', 'West Ham United')
 
-    try:
-        dt = datetime.strptime(row["Date"], "%d/%m/%Y").strftime("%Y-%m-%d")
-    except:
-        continue
+NO MATCH FOUND FOR:
+  JSON : ('2025-08-17', 'Nottingham Forest FC', 'Brentford FC')
+  CSV options on same date:
+    ('2025-08-17', 'Chelsea', 'Crystal Palace')
+    ('2025-08-17', 'Nottingham Forest', 'Brentford')
+    ('2025-08-17', 'Manchester United', 'Arsenal')
 
-    home = TEAM_MAP.get(str(row["HomeTeam"]).strip(), str(row["HomeTeam"]).strip())
-    away = TEAM_MAP.get(str(row["AwayTeam"]).strip(), str(row["AwayTeam"]).strip())
+NO MATCH FOUND FOR:
+  JSON : ('2025-08-17', 'Chelsea FC', 'Crystal Palace FC')
+  CSV options on same date:
+    ('2025-08-17', 'Chelsea', 'Crystal Palace')
+    ('2025-08-17', 'Nottingham Forest', 'Brentford')
+    ('2025-08-17', 'Manchester United', 'Arsenal')
 
-    if pd.notna(row["FTHG"]) and pd.notna(row["FTAG"]):
-        results[(dt, home, away)] = f"{int(row['FTHG'])}-{int(row['FTAG'])}"
+NO MATCH FOUND FOR:
+  JSON : ('2025-08-17', 'Manchester United FC', 'Arsenal FC')
+  CSV options on same date:
+    ('2025-08-17', 'Chelsea', 'Crystal Palace')
+    ('2025-08-17', 'Nottingham Forest', 'Brentford')
+    ('2025-08-17', 'Manchester United', 'Arsenal')
 
-print(f"Results loaded: {len(results)}")
+NO MATCH FOUND FOR:
+  JSON : ('2025-08-18', 'Leeds United FC', 'Everton FC')
+  CSV options on same date:
+    ('2025-08-18', 'Leeds United', 'Everton')
 
-with open("schedule.json", "r") as f:
-    schedule = json.load(f)
 
-updated = 0
-debug_shown = 0
-
-for matchday in schedule["matchdays"]:
-    for match in matchday["matches"]:
-        key = (match["date"], match["home"].strip(), match["away"].strip())
-
-        if key in results:
-            match["score"] = results[key]
-            updated += 1
-        else:
-            # Show first 10 failures so we can see the mismatch
-            if debug_shown < 10:
-                print("NO MATCH FOUND FOR:")
-                print("  JSON :", key)
-
-                # find same date games from CSV to compare names
-                same_date = [r for r in results.keys() if r[0] == match["date"]]
-                if same_date:
-                    print("  CSV options on same date:")
-                    for opt in same_date[:3]:
-                        print("   ", opt)
-                else:
-                    print("  ❌ No CSV games on this date")
-                print()
-                debug_shown += 1
-
-with open("schedule.json", "w") as f:
-    json.dump(schedule, f, indent=2)
-
-print(f"\n✅ Updated {updated} match scores")
+✅ Updated 0 match scores
