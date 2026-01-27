@@ -7,15 +7,9 @@ CSV_URL = "https://www.football-data.co.uk/mmz4281/2526/E0.csv"
 
 def clean_team(name):
     name = name.strip()
-
-    # Remove common suffixes
     name = re.sub(r"\bFC\b", "", name)
     name = re.sub(r"\bAFC\b", "", name)
-    name = re.sub(r"\bAFC\b", "", name)
-
-    # Normalize spaces
     name = re.sub(r"\s+", " ", name)
-
     return name.strip()
 
 print("Downloading latest results...")
@@ -36,7 +30,7 @@ for _, row in df.iterrows():
     away = clean_team(str(row["AwayTeam"]))
 
     if pd.notna(row["FTHG"]) and pd.notna(row["FTAG"]):
-        results[(dt, home, away)] = f"{int(row['FTHG'])}-{int(row['FTAG'])}"
+        results[(dt, home, away)] = (int(row["FTHG"]), int(row["FTAG"]))
 
 print(f"Results loaded: {len(results)}")
 
@@ -54,10 +48,18 @@ for matchday in schedule["matchdays"]:
         )
 
         if key in results:
-            match["score"] = results[key]
+            home_goals, away_goals = results[key]
+
+            match["result"] = {
+                "homeGoals": home_goals,
+                "awayGoals": away_goals,
+                "halfTime": ""
+            }
+
             updated += 1
 
 with open("schedule.json", "w") as f:
     json.dump(schedule, f, indent=2)
 
-print(f"✅ Updated {updated} match scores")
+print(f"✅ Updated {updated} match results")
+
