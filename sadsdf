@@ -1,124 +1,18 @@
-import pandas as pd
-import json
-import re
-from datetime import datetime, timedelta
+Downloading latest results...
+Results loaded: 230
+Lookup table built with 230 played matches
+✅ Updated 228 matches
 
-CSV_URL = "https://www.football-data.co.uk/mmz4281/2526/E0.csv"
-JSON_FILE = "schedule.json"
+⚠ Still unmatched matches:
+   ('2026-01-17', 'Brighton & Hove Albion FC', 'AFC Bournemouth')
+   ('2026-01-24', 'Everton FC', 'Leeds United FC')
+   ('2026-01-31', 'Sunderland AFC', 'Burnley FC')
+   ('2026-01-31', 'Aston Villa FC', 'Brentford FC')
+   ('2026-01-31', 'Brighton & Hove Albion FC', 'Everton FC')
+   ('2026-01-31', 'Chelsea FC', 'West Ham United FC')
+   ('2026-01-31', 'Liverpool FC', 'Newcastle United FC')
+   ('2026-01-31', 'Leeds United FC', 'Arsenal FC')
+   ('2026-01-31', 'Manchester United FC', 'Fulham FC')
+   ('2026-01-31', 'Nottingham Forest FC', 'Crystal Palace FC')
+🎉 schedule.json fully synchronised
 
-print("Downloading latest results...")
-df = pd.read_csv(CSV_URL)
-print(f"Results loaded: {len(df)}")
-
-# ================= TEAM NAME NORMALISATION =================
-
-TEAM_MAP = {
-    "manchester united": "man united",
-    "manchester city": "man city",
-    "tottenham hotspur": "tottenham",
-    "wolverhampton wanderers": "wolves",
-    "nottingham forest": "nott'm forest",
-    "brighton & hove albion": "brighton",
-    "newcastle united": "newcastle",
-    "west ham united": "west ham",
-    "sheffield united": "sheffield utd",
-    "leicester city": "leicester",
-    "leeds united": "leeds",
-    "everton": "everton",
-    "burnley": "burnley",
-    "brentford": "brentford",
-    "arsenal": "arsenal",
-    "chelsea": "chelsea",
-    "liverpool": "liverpool",
-    "crystal palace": "crystal palace",
-    "aston villa": "aston villa"
-}
-
-def clean_team(name):
-    name = name.lower().strip()
-    name = re.sub(r"\b(fc|afc|cf)\b", "", name)
-    name = re.sub(r"[^a-z '&]", "", name)
-    name = re.sub(r"\s+", " ", name).strip()
-    return TEAM_MAP.get(name, name)
-
-# ================= BUILD RESULTS LOOKUP =================
-
-results_lookup = {}
-
-for _, row in df.iterrows():
-    if pd.isna(row["Date"]) or pd.isna(row["HomeTeam"]) or pd.isna(row["AwayTeam"]):
-        continue
-
-    try:
-        dt = datetime.strptime(row["Date"], "%d/%m/%Y")
-        date_str = dt.strftime("%Y-%m-%d")
-    except:
-        continue
-
-    home = clean_team(str(row["HomeTeam"]))
-    away = clean_team(str(row["AwayTeam"]))
-
-    if pd.notna(row["FTHG"]) and pd.notna(row["FTAG"]):
-        results_lookup[(date_str, home, away)] = (
-            int(row["FTHG"]),
-            int(row["FTAG"])
-        )
-
-print(f"Lookup table built with {len(results_lookup)} played matches")
-
-# ================= UPDATE JSON =================
-
-with open(JSON_FILE, "r") as f:
-    schedule = json.load(f)
-
-updated = 0
-missed = []
-
-for md in schedule["matchdays"]:
-    for match in md["matches"]:
-        base_date = datetime.strptime(match["date"], "%Y-%m-%d")
-        home = clean_team(match["home"])
-        away = clean_team(match["away"])
-
-        found = False
-
-        # Try exact date, +1 day, -1 day
-        for offset in [0, 1, -1]:
-            check_date = (base_date + timedelta(days=offset)).strftime("%Y-%m-%d")
-
-            # Normal
-            key = (check_date, home, away)
-            if key in results_lookup:
-                hg, ag = results_lookup[key]
-                found = True
-
-            # Reversed home/away (rare but happens)
-            rev_key = (check_date, away, home)
-            if not found and rev_key in results_lookup:
-                ag, hg = results_lookup[rev_key]
-                found = True
-
-            if found:
-                match["score"] = f"{hg}-{ag}"
-                match["result"] = {
-                    "homeGoals": hg,
-                    "awayGoals": ag,
-                    "halfTime": ""
-                }
-                updated += 1
-                break
-
-        if not found and match.get("score", "") == "":
-            missed.append((match["date"], match["home"], match["away"]))
-
-print(f"✅ Updated {updated} matches")
-
-if missed:
-    print("\n⚠ Still unmatched matches:")
-    for m in missed[:10]:
-        print("  ", m)
-
-with open(JSON_FILE, "w") as f:
-    json.dump(schedule, f, indent=2)
-
-print("🎉 schedule.json fully synchronised")
