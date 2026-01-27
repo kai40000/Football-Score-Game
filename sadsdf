@@ -1,74 +1,67 @@
-import pandas as pd
+import requests
+from bs4 import BeautifulSoup
 import json
 from datetime import datetime
 
-CSV_URL = "https://www.football-data.co.uk/mmz4281/2526/E0.csv"
+URL = "https://fixturedownload.com/results/epl-2025"
 
-print("Downloading fixture data...")
-df = pd.read_csv(CSV_URL)
+print("Downloading fixtures and results...")
+
+headers = {
+    "User-Agent": "Mozilla/5.0"
+}
+
+r = requests.get(URL, headers=headers)
+soup = BeautifulSoup(r.text, "lxml")
+
+table = soup.find("table")
+
+rows = table.find_all("tr")[1:]  # skip header row
 
 matches = []
 
-for _, row in df.iterrows():
-    if pd.isna(row["Date"]):
+for row in rows:
+    cols = [c.get_text(strip=True) for c in row.find_all("td")]
+
+    if len(cols) < 5:
         continue
 
+    date_str = cols[0]
+    home = cols[1]
+    score = cols[2]
+    away = cols[3]
+
     try:
-        dt = datetime.strptime(row["Date"], "%d/%m/%Y")
+        dt = datetime.strptime(date_str, "%d/%m/%Y")
         formatted_date = dt.strftime("%Y-%m-%d")
     except:
         continue
-
-    home = str(row["HomeTeam"])
-    away = str(row["AwayTeam"])
-
-    if pd.notna(row["FTHG"]) and pd.notna(row["FTAG"]):
-        score = f"{int(row['FTHG'])}-{int(row['FTAG'])}"
-    else:
-        score = ""  # Future match
 
     matches.append({
         "date": formatted_date,
         "time": "",
         "home": home,
         "away": away,
-        "score": score
+        "score": score if "-" in score else ""
     })
 
-print(f"Total matches found: {len(matches)}")
+print(f"Total matches scraped: {len(matches)}")
 
-# ==============================
-# SPLIT INTO MATCHDAYS (10 games each)
-# ==============================
-all_matchdays = []
+# Group into matchdays (10 matches each)
+matchdays = []
 for i in range(0, len(matches), 10):
-    all_matchdays.append({
+    matchdays.append({
         "matchday": (i // 10) + 1,
         "matches": matches[i:i+10]
     })
 
-# ==============================
-# FIND NEXT 2 UPCOMING MATCHDAYS
-# ==============================
-upcoming_matchdays = []
-
-for md in all_matchdays:
-    # If ALL matches in this matchday have empty scores → not played yet
-    if all(m["score"] == "" for m in md["matches"]):
-        upcoming_matchdays.append(md)
-
-    if len(upcoming_matchdays) == 2:
-        break
-
-print(f"Upcoming matchdays found: {len(upcoming_matchdays)}")
-
 schedule = {
     "competition": "Premier League",
     "season": "2025/2026",
-    "matchdays": upcoming_matchdays
+    "matchdays": matchdays
 }
 
 with open("schedule.json", "w") as f:
     json.dump(schedule, f, indent=2)
 
-print("✅ schedule.json updated with next 2 matchdays")
+print("✅ schedule.json created with fixtures + results")
