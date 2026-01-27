@@ -1,28 +1,82 @@
-import json
 import pandas as pd
-from datetime import datetime
+import json
 import re
+from datetime import datetime
 
 CSV_URL = "https://www.football-data.co.uk/mmz4281/2526/E0.csv"
-
-def clean_team(name):
-    name = name.strip()
-    name = re.sub(r"\bFC\b", "", name)
-    name = re.sub(r"\bAFC\b", "", name)
-    name = re.sub(r"\s+", " ", name)
-    return name.strip()
+JSON_FILE = "schedule.json"
 
 print("Downloading latest results...")
 df = pd.read_csv(CSV_URL)
+print(f"Results loaded: {len(df)}")
 
-results = {}
+# ================= TEAM NAME NORMALISATION =================
+
+TEAM_MAP = {
+    "manchester united": "man united",
+    "man united": "man united",
+
+    "manchester city": "man city",
+    "man city": "man city",
+
+    "tottenham hotspur": "tottenham",
+    "tottenham": "tottenham",
+
+    "wolverhampton wanderers": "wolves",
+    "wolves": "wolves",
+
+    "nottingham forest": "nott'm forest",
+    "nott'm forest": "nott'm forest",
+
+    "brighton & hove albion": "brighton",
+    "brighton": "brighton",
+
+    "newcastle united": "newcastle",
+    "newcastle": "newcastle",
+
+    "west ham united": "west ham",
+    "west ham": "west ham",
+
+    "leicester city": "leicester",
+    "leeds united": "leeds",
+
+    "sheffield united": "sheffield utd",
+    "sheffield utd": "sheffield utd",
+
+    "luton town": "luton",
+    "ipswich town": "ipswich",
+
+    "aston villa": "aston villa",
+    "chelsea": "chelsea",
+    "arsenal": "arsenal",
+    "liverpool": "liverpool",
+    "everton": "everton",
+    "crystal palace": "crystal palace",
+    "bournemouth": "bournemouth",
+    "burnley": "burnley",
+    "fulham": "fulham",
+    "brentford": "brentford",
+    "southampton": "southampton"
+}
+
+def clean_team(name):
+    name = name.lower().strip()
+    name = re.sub(r"\bfc\b", "", name)
+    name = re.sub(r"\bafc\b", "", name)
+    name = re.sub(r"\s+", " ", name).strip()
+    return TEAM_MAP.get(name, name)
+
+# ================= BUILD RESULTS LOOKUP =================
+
+results_lookup = {}
 
 for _, row in df.iterrows():
-    if pd.isna(row["Date"]):
+    if pd.isna(row["Date"]) or pd.isna(row["HomeTeam"]) or pd.isna(row["AwayTeam"]):
         continue
 
     try:
-        dt = datetime.strptime(row["Date"], "%d/%m/%Y").strftime("%Y-%m-%d")
+        dt = datetime.strptime(row["Date"], "%d/%m/%Y")
+        date_str = dt.strftime("%Y-%m-%d")
     except:
         continue
 
@@ -30,36 +84,38 @@ for _, row in df.iterrows():
     away = clean_team(str(row["AwayTeam"]))
 
     if pd.notna(row["FTHG"]) and pd.notna(row["FTAG"]):
-        results[(dt, home, away)] = (int(row["FTHG"]), int(row["FTAG"]))
+        score = f"{int(row['FTHG'])}-{int(row['FTAG'])}"
+    else:
+        score = ""
 
-print(f"Results loaded: {len(results)}")
+    results_lookup[(date_str, home, away)] = score
 
-with open("schedule.json", "r") as f:
+print(f"Built lookup table with {len(results_lookup)} matches")
+
+# ================= UPDATE JSON =================
+
+with open(JSON_FILE, "r") as f:
     schedule = json.load(f)
 
 updated = 0
 
-for matchday in schedule["matchdays"]:
-    for match in matchday["matches"]:
-        key = (
-            match["date"],
-            clean_team(match["home"]),
-            clean_team(match["away"])
-        )
+for md in schedule["matchdays"]:
+    for match in md["matches"]:
+        date = match["date"]
+        home = clean_team(match["home"])
+        away = clean_team(match["away"])
 
-        if key in results:
-            home_goals, away_goals = results[key]
+        key = (date, home, away)
 
-            match["result"] = {
-                "homeGoals": home_goals,
-                "awayGoals": away_goals,
-                "halfTime": ""
-            }
-
+        if key in results_lookup and results_lookup[key] != "":
+            match["score"] = results_lookup[key]
             updated += 1
 
-with open("schedule.json", "w") as f:
+print(f"Updated {updated} match scores")
+
+with open(JSON_FILE, "w") as f:
     json.dump(schedule, f, indent=2)
 
-print(f"✅ Updated {updated} match results")
+print("✅ schedule.json successfully updated")
+
 
