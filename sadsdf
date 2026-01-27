@@ -3,49 +3,45 @@ from bs4 import BeautifulSoup
 import json
 from datetime import datetime
 
-URL = "https://fixturedownload.com/results/epl-2025"
+URL = "https://en.wikipedia.org/wiki/2025%E2%80%9326_Premier_League"
 
-print("Downloading fixtures and results...")
+print("Downloading fixtures from Wikipedia...")
 
-headers = {
-    "User-Agent": "Mozilla/5.0"
-}
-
+headers = {"User-Agent": "Mozilla/5.0"}
 r = requests.get(URL, headers=headers)
 soup = BeautifulSoup(r.text, "lxml")
 
-table = soup.find("table")
-
-rows = table.find_all("tr")[1:]  # skip header row
-
 matches = []
 
-for row in rows:
-    cols = [c.get_text(strip=True) for c in row.find_all("td")]
+tables = soup.find_all("table", class_="wikitable")
 
-    if len(cols) < 5:
-        continue
+for table in tables:
+    rows = table.find_all("tr")
+    for row in rows:
+        cols = [c.get_text(strip=True) for c in row.find_all("td")]
+        if len(cols) < 5:
+            continue
 
-    date_str = cols[0]
-    home = cols[1]
-    score = cols[2]
-    away = cols[3]
+        date_text = cols[0]
+        home = cols[1]
+        score = cols[2]
+        away = cols[3]
 
-    try:
-        dt = datetime.strptime(date_str, "%d/%m/%Y")
-        formatted_date = dt.strftime("%Y-%m-%d")
-    except:
-        continue
+        try:
+            dt = datetime.strptime(date_text, "%d %B %Y")
+            formatted_date = dt.strftime("%Y-%m-%d")
+        except:
+            continue
 
-    matches.append({
-        "date": formatted_date,
-        "time": "",
-        "home": home,
-        "away": away,
-        "score": score if "-" in score else ""
-    })
+        matches.append({
+            "date": formatted_date,
+            "time": "",
+            "home": home,
+            "away": away,
+            "score": score if "-" in score else ""
+        })
 
-print(f"Total matches scraped: {len(matches)}")
+print(f"Scraped {len(matches)} matches")
 
 # Group into matchdays (10 matches each)
 matchdays = []
@@ -64,4 +60,4 @@ schedule = {
 with open("schedule.json", "w") as f:
     json.dump(schedule, f, indent=2)
 
-print("✅ schedule.json created with fixtures + results")
+print("✅ schedule.json created")
