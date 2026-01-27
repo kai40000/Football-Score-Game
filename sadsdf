@@ -1,37 +1,123 @@
-Downloading latest results...
-Results loaded: 230
-Lookup table built with 230 played matches
+import json
+import pandas as pd
+import re
+from datetime import datetime
 
-✅ Updated 198 matches
+JSON_FILE = "schedule.json"
+CSV_URL = "https://www.football-data.co.uk/mmz4281/2526/E0.csv"
 
-⚠ Still unmatched matches:
-   ('2025-08-17', "nott'm forest", 'brentford')
-   ('2025-08-24', 'crystal palace', "nott'm forest")
-   ('2025-08-31', "nott'm forest", 'west ham')
-   ('2025-09-13', 'arsenal', "nott'm forest")
-   ('2025-09-20', 'burnley', "nott'm forest")
-   ('2025-09-27', "nott'm forest", 'sunderland')
-   ('2025-10-05', 'newcastle', "nott'm forest")
-   ('2025-10-18', "nott'm forest", 'chelsea')
-   ('2025-10-26', 'bournemouth', "nott'm forest")
-   ('2025-11-01', "nott'm forest", 'man united')
-   ('2025-11-09', "nott'm forest", 'leeds')
-   ('2025-11-22', 'liverpool', "nott'm forest")
-   ('2025-11-30', "nott'm forest", 'brighton')
-   ('2025-12-03', 'wolves', "nott'm forest")
-   ('2025-12-06', 'everton', "nott'm forest")
-   ('2025-12-14', "nott'm forest", 'tottenham')
-   ('2025-12-21', 'everton', 'arsenal')
-   ('2025-12-21', 'leeds', 'crystal palace')
-   ('2025-12-22', 'fulham', "nott'm forest")
-   ('2025-12-27', "nott'm forest", 'man city')
-   ('2025-12-30', "nott'm forest", 'everton')
-   ('2026-01-03', 'aston villa', "nott'm forest")
-   ('2026-01-06', 'west ham', "nott'm forest")
-   ('2026-01-17', 'aston villa', 'everton')
-   ('2026-01-17', "nott'm forest", 'arsenal')
-   ('2026-01-17', 'wolves', 'newcastle')
-   ('2026-01-24', 'crystal palace', 'chelsea')
-   ('2026-01-24', 'arsenal', 'man united')
-   ('2026-01-24', 'brentford', "nott'm forest")
-   ('2026-01-24', 'newcastle', 'aston villa')
+print("Downloading latest results...")
+df = pd.read_csv(CSV_URL)
+print(f"Results loaded: {len(df)}")
+
+# =========================
+# TEAM NAME NORMALISER
+# =========================
+TEAM_MAP = {
+    "manchester united": "man united",
+    "manchester city": "man city",
+    "tottenham hotspur": "tottenham",
+    "wolverhampton wanderers": "wolves",
+    "nottingham forest": "nottingham forest",
+    "nottm forest": "nottingham forest",
+    "nott'm forest": "nottingham forest",
+    "brighton & hove albion": "brighton",
+    "brighton and hove albion": "brighton",
+    "newcastle united": "newcastle",
+    "west ham united": "west ham",
+    "sheffield united": "sheffield utd",
+    "leicester city": "leicester",
+    "leeds united": "leeds",
+    "everton": "everton",
+    "burnley": "burnley",
+    "brentford": "brentford",
+    "arsenal": "arsenal",
+    "chelsea": "chelsea",
+    "liverpool": "liverpool",
+    "crystal palace": "crystal palace",
+    "aston villa": "aston villa",
+    "afc bournemouth": "bournemouth",
+    "bournemouth": "bournemouth",
+    "sunderland afc": "sunderland",
+    "sunderland": "sunderland",
+    "fulham fc": "fulham",
+    "fulham": "fulham",
+}
+
+def clean_team(name):
+    name = name.lower()
+    name = name.replace("&", "and")
+    name = re.sub(r"\b(fc|afc|cf)\b", "", name)
+    name = re.sub(r"[^a-z' ]", "", name)
+    name = re.sub(r"\s+", " ", name).strip()
+    return TEAM_MAP.get(name, name)
+
+# =========================
+# BUILD RESULTS LOOKUP
+# =========================
+results_lookup = {}
+
+for _, row in df.iterrows():
+    if pd.isna(row["FTHG"]) or pd.isna(row["FTAG"]):
+        continue
+
+    date = datetime.strptime(row["Date"], "%d/%m/%Y").strftime("%Y-%m-%d")
+    home = clean_team(row["HomeTeam"])
+    away = clean_team(row["AwayTeam"])
+
+    results_lookup[(date, home, away)] = {
+        "score": f"{int(row['FTHG'])}-{int(row['FTAG'])}",
+        "homeGoals": int(row["FTHG"]),
+        "awayGoals": int(row["FTAG"])
+    }
+
+print(f"Lookup table built with {len(results_lookup)} played matches")
+
+# =========================
+# LOAD YOUR FIXTURE JSON
+# =========================
+with open(JSON_FILE, "r") as f:
+    schedule = json.load(f)
+
+updated = 0
+unmatched = []
+
+for md in schedule["matchdays"]:
+    for match in md["matches"]:
+        key = (
+            match["date"],
+            clean_team(match["home"]),
+            clean_team(match["away"])
+        )
+
+        if key in results_lookup:
+            res = results_lookup[key]
+            match["score"] = res["score"]
+            match["result"] = {
+                "homeGoals": res["homeGoals"],
+                "awayGoals": res["awayGoals"],
+                "halfTime": None
+            }
+            updated += 1
+        else:
+            match["score"] = ""
+            match["result"] = None
+            # Only log if it *should* have had a score
+            unmatched.append(key)
+
+# =========================
+# SAVE UPDATED JSON
+# =========================
+with open(JSON_FILE, "w") as f:
+    json.dump(schedule, f, indent=2)
+
+print(f"\n✅ Updated {updated} matches")
+
+if unmatched:
+    print("\n⚠ Still unmatched matches:")
+    for u in unmatched[:10]:
+        print("  ", u)
+    if len(unmatched) > 10:
+        print(f"  ...and {len(unmatched)-10} more")
+else:
+    print("🎉 schedule.json fully synchronised")
