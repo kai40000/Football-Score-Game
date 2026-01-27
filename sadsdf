@@ -2,21 +2,17 @@ import pandas as pd
 import json
 from datetime import datetime
 
-# Premier League current season CSV
 CSV_URL = "https://www.football-data.co.uk/mmz4281/2526/E0.csv"
 
 print("Downloading fixture data...")
-
 df = pd.read_csv(CSV_URL)
 
 matches = []
 
 for _, row in df.iterrows():
-    # Skip rows without a date
     if pd.isna(row["Date"]):
         continue
 
-    # Convert date format
     try:
         dt = datetime.strptime(row["Date"], "%d/%m/%Y")
         formatted_date = dt.strftime("%Y-%m-%d")
@@ -26,11 +22,10 @@ for _, row in df.iterrows():
     home = str(row["HomeTeam"])
     away = str(row["AwayTeam"])
 
-    # Score might not exist yet
     if pd.notna(row["FTHG"]) and pd.notna(row["FTAG"]):
         score = f"{int(row['FTHG'])}-{int(row['FTAG'])}"
     else:
-        score = ""
+        score = ""  # Future match
 
     matches.append({
         "date": formatted_date,
@@ -40,23 +35,40 @@ for _, row in df.iterrows():
         "score": score
     })
 
-# Group every 10 matches into a "matchday"
-matchdays = []
+print(f"Total matches found: {len(matches)}")
+
+# ==============================
+# SPLIT INTO MATCHDAYS (10 games each)
+# ==============================
+all_matchdays = []
 for i in range(0, len(matches), 10):
-    matchdays.append({
+    all_matchdays.append({
         "matchday": (i // 10) + 1,
         "matches": matches[i:i+10]
     })
 
+# ==============================
+# FIND NEXT 2 UPCOMING MATCHDAYS
+# ==============================
+upcoming_matchdays = []
+
+for md in all_matchdays:
+    # If ALL matches in this matchday have empty scores → not played yet
+    if all(m["score"] == "" for m in md["matches"]):
+        upcoming_matchdays.append(md)
+
+    if len(upcoming_matchdays) == 2:
+        break
+
+print(f"Upcoming matchdays found: {len(upcoming_matchdays)}")
+
 schedule = {
     "competition": "Premier League",
     "season": "2025/2026",
-    "matchdays": matchdays
+    "matchdays": upcoming_matchdays
 }
 
 with open("schedule.json", "w") as f:
     json.dump(schedule, f, indent=2)
 
-print(f"✅ Created schedule.json with {len(matches)} matches")
-
-
+print("✅ schedule.json updated with next 2 matchdays")
