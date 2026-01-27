@@ -1,13 +1,35 @@
-import pandas as pd
 import json
+import pandas as pd
 from datetime import datetime
 
+# ==============================
+# TEAM NAME FIXES
+# ==============================
+TEAM_MAP = {
+    "Man City": "Manchester City",
+    "Man United": "Manchester United",
+    "Spurs": "Tottenham",
+    "Newcastle": "Newcastle United",
+    "Wolves": "Wolverhampton Wanderers",
+    "West Ham": "West Ham United",
+    "Nott'm Forest": "Nottingham Forest",
+    "Brighton": "Brighton & Hove Albion",
+    "Leicester": "Leicester City",
+    "Leeds": "Leeds United",
+    "Norwich": "Norwich City",
+    "Sheffield United": "Sheffield United",
+    "QPR": "Queens Park Rangers",
+    "Preston": "Preston North End"
+}
+
+# ==============================
+# LOAD RESULTS FROM FOOTBALL-DATA
+# ==============================
 CSV_URL = "https://www.football-data.co.uk/mmz4281/2526/E0.csv"
 
 print("Downloading latest results...")
 df = pd.read_csv(CSV_URL)
 
-# Build lookup of results
 results = {}
 
 for _, row in df.iterrows():
@@ -19,32 +41,44 @@ for _, row in df.iterrows():
     except:
         continue
 
+    home = row["HomeTeam"].strip()
+    away = row["AwayTeam"].strip()
+
+    # Translate team names to match your JSON file
+    home = TEAM_MAP.get(home, home)
+    away = TEAM_MAP.get(away, away)
+
     if pd.notna(row["FTHG"]) and pd.notna(row["FTAG"]):
         score = f"{int(row['FTHG'])}-{int(row['FTAG'])}"
-        key = (dt, row["HomeTeam"].strip(), row["AwayTeam"].strip())
+        key = (dt, home, away)
         results[key] = score
 
 print(f"Results loaded: {len(results)}")
 
-# Load full fixtures
-with open("full_schedule.json", "r") as f:
+# ==============================
+# LOAD YOUR EXISTING SCHEDULE
+# ==============================
+with open("schedule.json", "r") as f:
     schedule = json.load(f)
 
 updated = 0
 
 for matchday in schedule["matchdays"]:
     for match in matchday["matches"]:
-        key = (match["date"], match["home"].strip(), match["away"].strip())
+        home = match["home"].strip()
+        away = match["away"].strip()
+        date = match["date"]
+
+        key = (date, home, away)
 
         if key in results:
             match["score"] = results[key]
             updated += 1
 
-print(f"Updated {updated} match scores")
-
-# Save updated schedule
+# ==============================
+# SAVE UPDATED FILE
+# ==============================
 with open("schedule.json", "w") as f:
     json.dump(schedule, f, indent=2)
 
-print("✅ schedule.json updated with latest scores")
-
+print(f"✅ Updated {updated} match scores in schedule.json")
